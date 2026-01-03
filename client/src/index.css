@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+
+*{
+  font-family: "Outfit", sans-serif;
+  /* overflow-y: hidden */
+  ;
+}
+
+
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar ::-webkit-scrollbar{
+  display: none;
+}
+
+
+/* Prevent overscroll completely */
+/* 
+ */
+ /* Reset everything */
