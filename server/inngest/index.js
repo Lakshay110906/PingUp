@@ -10,7 +10,7 @@ const syncUserCreation = inngest.createFunction(
     { event: 'clerk/user.created' },
     async ({ event }) => {
         const { id, first_name, last_name, email_addresses, image_url } = event.data
-        let username = email_addresses[0].email_addresses.split('@')[0]
+        let username = email_addresses[0].email_address.split('@')[0]
 
         // check availability of username
         const user = await User.findOne({ username })
@@ -21,7 +21,7 @@ const syncUserCreation = inngest.createFunction(
 
         const userData = {
             _id: id,
-            email: email_addresses[0].email_addresses,
+            email: email_addresses[0].email_address,
             full_name: first_name + " " + last_name,
             profile_picture: image_url,
             username
@@ -41,7 +41,7 @@ const updateUserCreation = inngest.createFunction(
         const { id, first_name, last_name, email_addresses, image_url } = event.data
 
         const updatedUserData = {
-            email: email_addresses[0].email_addresses,
+            email: email_addresses[0].email_address,
             full_name: first_name + " " + last_name,
             profile_picture: image_url,
 
