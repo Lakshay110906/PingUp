@@ -17,6 +17,7 @@ const ChatBox = () => {
   const [image,setImage] = useState(null)
   const [user,setUser] = useState(null)
   const messagesEndRef = useRef(null)
+  const isFirstLoad = useRef(true)
 
   const connections =useSelector((state) => state.connections.connections)
 
@@ -57,6 +58,7 @@ const ChatBox = () => {
   }
 
   useEffect(() => {
+    isFirstLoad.current = true
     fetchUserMessages()
 
     return () => {
@@ -72,9 +74,20 @@ const ChatBox = () => {
 
   },[connections,userId])
 
-  useEffect(()=>{
-      messagesEndRef.current?.scrollIntoView({behavior :'smooth'})
-  },[messages])
+  useEffect(() => {
+    if (messages.length > 0) {
+      // If it's the first load, use 'auto' (instant). 
+      // If it's a new message update, use 'smooth'.
+      const scrollBehavior = isFirstLoad.current ? 'auto' : 'smooth';
+
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior });
+        
+        // After the first scroll, set this to false so future messages scroll smoothly
+        isFirstLoad.current = false;
+      }, 50); // Reduced timeout slightly for snappier feel
+    }
+  }, [messages]);
   return user && (
     <div  className='flex flex-col h-screen'>
       <div className='flex items-center gap-2 p-2 md:px-10 xl:pl-42 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-300'>

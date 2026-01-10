@@ -297,4 +297,34 @@ export const getUserProfiles = async (req, res) => {
     }
 }
 
+// ... existing imports
+// ... existing functions
+
+// Remove Connection (Add this function)
+export const removeConnection = async (req, res) => {
+    try {
+        const { userId } = req.auth();
+        const { id } = req.body; // The ID of the user to disconnect
+
+        // 1. Remove ID from both users' connections array
+        await User.findByIdAndUpdate(userId, { $pull: { connections: id } });
+        await User.findByIdAndUpdate(id, { $pull: { connections: userId } });
+
+        // 2. Delete the actual Connection document 
+        // We check both directions: (A->B) OR (B->A)
+        await Connection.findOneAndDelete({
+            $or: [
+                { from_user_id: userId, to_user_id: id },
+                { from_user_id: id, to_user_id: userId }
+            ]
+        });
+
+        res.json({ success: true, message: 'Connection removed successfully' });
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
+
 

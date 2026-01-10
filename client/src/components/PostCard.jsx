@@ -41,7 +41,7 @@ const PostCard = ({ post }) => {
     const navigate = useNavigate()
 
     return (
-        <div className='bg-white rounded-xl shadow p-4 space-y-4 w-full max-w-2xl '>
+        <div className='bg-white rounded-xl shadow p-3 space-y-3 w-full max-w-2xl  '>
             {/* user info */}
             <div onClick={()=> navigate('/profile/' + post.user._id)} className='inline-flex items-center gap-3 cursor-pointer'>
                 <img src={post.user.profile_picture} alt="" className='w-10 h-10 rounded-full shadow' />
@@ -61,7 +61,7 @@ const PostCard = ({ post }) => {
             {/* images */}
             <div className='grid grid-cols-2 gap-2'>
                 {post.image_urls.map((img,index)=>(
-                    <img src={img} key={index} className={`w-full h-48 object-cover rounded-lg ${post.image_urls.length===1 && 'col-span-2 h-auto'}`}/>
+                    <img src={img} key={index} className={`w-full aspect-4/3 object-contain   rounded-lg ${post.image_urls.length===1 && 'col-span-2 '}`}/>
                 ))}
 
             </div>

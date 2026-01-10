@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Users,UserPlus,UserCheck,UserRoundPen,MessageSquare } from 'lucide-react'
+import { Users,UserPlus,UserCheck,UserRoundPen,MessageSquare, UserX } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useSelector ,useDispatch} from 'react-redux'
 import { useAuth } from '@clerk/clerk-react'
@@ -56,6 +56,43 @@ const Connections = () => {
     }
   }
 
+  const removeConnection = async (userId) => {
+    if (!window.confirm("Are you sure you want to remove this connection?")) return;
+    
+    try {
+      const { data } = await api.post('/api/user/remove-connection', { id: userId }, {
+        headers: { Authorization: `Bearer ${await getToken()}` }
+      })
+      if (data.success) {
+        toast.success(data.message)
+        dispatch(fetchConnections(await getToken()))
+      } else {
+        toast(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const sendConnectionRequest = async (userId) => {
+    try {
+        const {data} = await api.post('/api/user/connect', {id: userId}, {
+            headers : { Authorization : `Bearer ${await getToken()}`}
+        })
+        if(data.success) {
+            toast.success(data.message)
+        } else {
+            toast.error(data.message)
+        }
+    } catch (error) {
+        toast.error(error.message)
+    }
+  }
+
+  const isConnected = (userId) => {
+    return connections.some(connection => connection._id === userId);
+  }
+
   useEffect(()=>{
     getToken().then((token) => {
       dispatch(fetchConnections(token))
@@ -109,6 +146,26 @@ const Connections = () => {
                     </button>
                   }
 
+                  {currentTab === 'Followers' && (
+                  <>
+                    {!isConnected(user._id) ? (
+                      <button 
+                        onClick={() => sendConnectionRequest(user._id)} 
+                        className='flex-1 py-1.5 md:py-2 px-1 text-xs md:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap'
+                      >
+                        <UserPlus className='w-3 h-3 md:w-4 md:h-4'/> Connect
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => navigate(`/messages/${user._id}`)} 
+                        className='flex-1 py-1.5 md:py-2 px-1 text-xs md:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap'
+                      >
+                        <MessageSquare className='w-3 h-3 md:w-4 md:h-4'/> Message
+                      </button>
+                    )}
+                  </>
+                )}
+
                   {
                     currentTab === 'Following' && (
                       <button onClick={() =>handleUnfollow(user._id)} className='w-full p-2 text-sm  rounded bg-slate-100 hover:bg-slate-200 text-black active:scale-95 transition cursor-pointer'>
@@ -123,14 +180,23 @@ const Connections = () => {
                       </button>
                     )
                   }
-                  {
-                    currentTab === 'Connections' && (
-                      <button onClick={()=> navigate(`/messages/${user._id}`)} className='w-full p-2 text-sm  rounded bg-slate-100 hover:bg-slate-200 text-black active:scale-95 transition cursor-pointer flex items-center justify-center gap-1'>
-                        <MessageSquare className='w-4 h-4 '/>
-                        Message
-                      </button>
-                    )
-                  }
+                  {currentTab === 'Connections' && (
+                  <>
+                    <button 
+                      onClick={() => navigate(`/messages/${user._id}`)} 
+                      className='flex-[2] py-1.5 px-1 md:py-2 text-xs md:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap'
+                    >
+                      <MessageSquare className='w-3 h-3 md:w-4 md:h-4'/> Message
+                    </button>
+                    <button 
+                      onClick={() => removeConnection(user._id)} 
+                      className='px-2 md:px-3 py-1.5 md:py-2  text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 flex-shrink-0'
+                      title="Remove Connection"
+                    >
+                      <UserX className='w-4 h-4 md:w-5 md:h-5'/>
+                    </button>
+                  </>
+                )}
 
                 </div>
               </div>
