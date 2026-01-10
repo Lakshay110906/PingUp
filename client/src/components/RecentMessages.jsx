@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { dummyRecentMessagesData } from '../assets/assets'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import moment from 'moment'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ const RecentMessages = () => {
     const [messages, setMessages] = useState([])
     const { user } = useUser()
     const { getToken } = useAuth()
+    const navigate = useNavigate()
 
     const fetchRecentMessages = async () => {
         try {
@@ -52,7 +53,7 @@ const RecentMessages = () => {
             <div className='flex flex-col max-h-56 overflow-y-scroll no-scrollbar'>
                 {
                     messages.map((message, index) => (
-                        <Link key={index} className='flex items-start gap-2 py-2 hover:bg-slate-100'>
+                        <div onClick={() => navigate(`/messages/${message.from_user_id._id}`)}  key={index} className='flex items-start gap-2 py-2 hover:bg-slate-100'>
                             <img className='w-8 h-8 rounded-full' src={message.from_user_id.profile_picture} alt='' />
                             <div className='w-full'>
                                 <div className='flex justify-between'>
@@ -67,7 +68,7 @@ const RecentMessages = () => {
 
                                 </div>
                             </div>
-                        </Link>
+                        </div>
                     ))
                 }
             </div>
