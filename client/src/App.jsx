@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useEffect } from 'react' // Added useEffect
 import { Route, Routes, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Feed from './pages/Feed'
@@ -8,32 +8,33 @@ import Connections from './pages/Connections'
 import Discover from './pages/Discover'
 import Profile from './pages/Profile'
 import CreatePost from './pages/CreatePost'
-import { useAuth, useUser  } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import Layout from './pages/Layout'
-import toast, { Toaster } from 'react-hot-toast'
-import { useEffect } from 'react'
-import { useDispatch } from 'react-redux'
+import { Toaster, toast } from 'react-hot-toast' // Consolidated imports
+import { useDispatch, useSelector } from 'react-redux' // 1. Import useSelector
 import { fetchUser } from './features/user/userSlice'
 import { fetchConnections } from './features/connections/connectionsSlice'
 import { addMessage } from './features/messages/messagesSlice'
 import Notification from './components/Notification'
 
-
 const App = () => {
-  const {  user } = useUser()
+  const { user } = useUser() // Clerk User (Used for auth check)
   const { getToken } = useAuth()
   const dispatch = useDispatch()
-  const {pathname} = useLocation()
+  
+  // 2. Get the Real Database User from Redux
+  // We need this user's _id for the live connection
+  const mongoUser = useSelector((state) => state.user.user) 
+
+  const { pathname } = useLocation()
   const pathnameRef = useRef(pathname)
 
   useEffect(() => {
     const fetchData = async () => {
-
       if (user) {
         const token = await getToken()
         dispatch(fetchUser(token))
         dispatch(fetchConnections(token))
-
       }
     }
     fetchData()
@@ -41,32 +42,41 @@ const App = () => {
 
   useEffect(() => {
     pathnameRef.current = pathname
-  },[pathname])
+  }, [pathname])
 
+  // 3. EVENT SOURCE CONNECTION
   useEffect(() => {
-    if(user) {
-      const eventSource = new EventSource(import.meta.env.VITE_BASEURL + '/api/message/' + user.id)
+    // Only connect if we have the mongoUser loaded
+    if (mongoUser) {
+      
+      // FIX: Use mongoUser._id (Database ID) instead of user.id (Clerk ID)
+      const eventSource = new EventSource(import.meta.env.VITE_BASEURL + '/api/message/' + mongoUser._id)
 
       eventSource.onmessage = (event) => {
         const message = JSON.parse(event.data)
-        if(pathnameRef.current === ('/messages/' + message.from_user_id._id)){
+        
+        // Check if we are currently looking at the chat where the message came from
+        if (pathnameRef.current === ('/messages/' + message.from_user_id._id)) {
           dispatch(addMessage(message))
-        }
-        else{
+        } else {
+          // Otherwise show a notification
           toast.custom((t) => (
-            <Notification t={t} message={message}/>
-          ), {position : 'bottom-right'})
+            <Notification t={t} message={message} />
+          ), { position: 'bottom-right' })
         }
-
       }
-      return () => {
+
+      eventSource.onerror = (error) => {
+        console.error("SSE Error:", error)
         eventSource.close()
       }
 
+      return () => {
+        eventSource.close()
+      }
     }
-  },[user ,dispatch])
-  
- 
+  }, [mongoUser, dispatch]) // Dependency is now mongoUser, not user
+
   return (
     <>
       <Toaster />
@@ -80,7 +90,6 @@ const App = () => {
           <Route path='profile' element={<Profile />} />
           <Route path='profile/:profileId' element={<Profile />} />
           <Route path='create-post' element={<CreatePost />} />
-
         </Route>
       </Routes>
     </>
