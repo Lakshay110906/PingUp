@@ -95,7 +95,7 @@ const App = () => {
     };
 
     pollServer();
-    const intervalId = setInterval(pollServer, 3000); // Check every 3 seconds
+    const intervalId = setInterval(pollServer, 1000); // Check every 3 seconds
 
     return () => clearInterval(intervalId);
 
