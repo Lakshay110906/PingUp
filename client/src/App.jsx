@@ -18,11 +18,11 @@ import { addMessage } from './features/messages/messagesSlice'
 import Notification from './components/Notification'
 
 const App = () => {
-  const { user } = useUser() // Clerk User (Auth only)
+  const { user } = useUser()
   const { getToken } = useAuth()
   const dispatch = useDispatch()
   
-  // 1. GET THE DATABASE USER (Contains the correct _id)
+  // 1. GET THE DATABASE USER (This contains the correct _id for messaging)
   const mongoUser = useSelector((state) => state.user.value) 
 
   const { pathname } = useLocation()
@@ -45,21 +45,31 @@ const App = () => {
 
   // 2. LIVE CHAT CONNECTION (SSE)
   useEffect(() => {
-    // Only connect if the MongoDB user is fully loaded
+    // Only connect if we have the MongoDB user data loaded
     if (mongoUser) {
       
-      // FIX: Use mongoUser._id (Database ID) instead of user.id (Clerk ID)
+      console.log("Connecting to SSE with DB ID:", mongoUser._id);
+      
+      // CRITICAL FIX: Use mongoUser._id (Database ID) instead of user.id (Clerk ID)
       const eventSource = new EventSource(import.meta.env.VITE_BASEURL + '/api/message/' + mongoUser._id)
+
+      eventSource.onopen = () => {
+        console.log("✅ SSE Connection Established");
+      };
 
       eventSource.onmessage = (event) => {
         const message = JSON.parse(event.data)
         
-        // If we are currently chatting with this person, add the message directly
-        // Use ?. checks to prevent crashes
-        if (pathnameRef.current === ('/messages/' + message.from_user_id?._id)) {
+        // Handle ID mismatch if population fails (String vs Object)
+        const senderId = typeof message.from_user_id === 'object' 
+          ? message.from_user_id._id 
+          : message.from_user_id;
+
+        // Check if we are currently looking at the chat where the message came from
+        if (pathnameRef.current === ('/messages/' + senderId)) {
           dispatch(addMessage(message))
         } else {
-          // Otherwise show the popup notification
+          // Otherwise show a notification
           toast.custom((t) => (
             <Notification t={t} message={message} />
           ), { position: 'bottom-right' })
