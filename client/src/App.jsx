@@ -15,18 +15,21 @@ import { useDispatch, useSelector } from 'react-redux'
 import { fetchUser } from './features/user/userSlice'
 import { fetchConnections } from './features/connections/connectionsSlice'
 import { addMessage } from './features/messages/messagesSlice'
+import { fetchMessages } from './features/messages/messagesSlice' // Import fetchMessages
 import Notification from './components/Notification'
+import api from './api/axios' // Import API to make manual calls
 
 const App = () => {
   const { user } = useUser()
   const { getToken } = useAuth()
   const dispatch = useDispatch()
   
-  // 1. GET THE DATABASE USER (This contains the correct _id for messaging)
   const mongoUser = useSelector((state) => state.user.value) 
+  const { messages } = useSelector((state) => state.messages) // Access current chat messages if any
 
   const { pathname } = useLocation()
   const pathnameRef = useRef(pathname)
+  const lastMessageIdRef = useRef(null) // Keep track of the last received message
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,49 +46,65 @@ const App = () => {
     pathnameRef.current = pathname
   }, [pathname])
 
-  // 2. LIVE CHAT CONNECTION (SSE)
+  // --- REPLACED SSE WITH POLLING (Works on Vercel) ---
   useEffect(() => {
-    // Only connect if we have the MongoDB user data loaded
-    if (mongoUser) {
-      
-      console.log("Connecting to SSE with DB ID:", mongoUser._id);
-      
-      // CRITICAL FIX: Use mongoUser._id (Database ID) instead of user.id (Clerk ID)
-      const eventSource = new EventSource(import.meta.env.VITE_BASEURL + '/api/message/' + mongoUser._id)
+    if (!mongoUser) return;
 
-      eventSource.onopen = () => {
-        console.log("✅ SSE Connection Established");
-      };
-
-      eventSource.onmessage = (event) => {
-        const message = JSON.parse(event.data)
+    const pollServer = async () => {
+      try {
+        const token = await getToken();
         
-        // Handle ID mismatch if population fails (String vs Object)
-        const senderId = typeof message.from_user_id === 'object' 
-          ? message.from_user_id._id 
-          : message.from_user_id;
+        // 1. Fetch Recent Conversations
+        const { data } = await api.get('/api/user/recent-messages', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
 
-        // Check if we are currently looking at the chat where the message came from
-        if (pathnameRef.current === ('/messages/' + senderId)) {
-          dispatch(addMessage(message))
-        } else {
-          // Otherwise show a notification
-          toast.custom((t) => (
-            <Notification t={t} message={message} />
-          ), { position: 'bottom-right' })
+        if (data.success && data.messages.length > 0) {
+            const latestChat = data.messages[0];
+            const latestMsg = latestChat.lastMessage;
+
+            // 2. Check if this is a NEW message we haven't seen yet
+            if (lastMessageIdRef.current && lastMessageIdRef.current !== latestMsg._id) {
+                
+                // 3. Check if it's INCOMING (not sent by me)
+                if (latestMsg.from_user_id !== mongoUser._id) {
+                    
+                    // 4. If we are currently in that chat window...
+                    if (pathnameRef.current === ('/messages/' + latestChat.user._id)) {
+                        // ...Fetch the full chat history to update the screen
+                        dispatch(fetchMessages({ token, userId: latestChat.user._id }));
+                    } else {
+                        // 5. Otherwise, show a Notification
+                        const notifData = {
+                             ...latestMsg,
+                             from_user_id: latestChat.user // Ensure this matches Notification structure
+                        }
+                        
+                        toast.custom((t) => (
+                            <Notification t={t} message={notifData} />
+                        ), { position: 'bottom-right' })
+                    }
+                }
+            }
+            
+            // Update our ref so we don't notify again for the same message
+            lastMessageIdRef.current = latestMsg._id;
         }
-      }
 
-      eventSource.onerror = (error) => {
-        console.error("SSE Error:", error);
-        eventSource.close();
+      } catch (error) {
+        console.error("Polling Error:", error);
       }
+    };
 
-      return () => {
-        eventSource.close()
-      }
-    }
-  }, [mongoUser, dispatch]) // Dependency is mongoUser
+    // Run immediately
+    pollServer();
+
+    // Run every 3 seconds (Adjust as needed)
+    const intervalId = setInterval(pollServer, 2000);
+
+    return () => clearInterval(intervalId);
+
+  }, [mongoUser, dispatch, getToken]); 
 
   return (
     <>
