@@ -14,10 +14,9 @@ import { Toaster, toast } from 'react-hot-toast'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchUser } from './features/user/userSlice'
 import { fetchConnections } from './features/connections/connectionsSlice'
-import { addMessage } from './features/messages/messagesSlice'
-import { fetchMessages } from './features/messages/messagesSlice' // Import fetchMessages
+import { addMessage, fetchMessages } from './features/messages/messagesSlice'
 import Notification from './components/Notification'
-import api from './api/axios' // Import API to make manual calls
+import api from './api/axios'
 
 const App = () => {
   const { user } = useUser()
@@ -25,11 +24,10 @@ const App = () => {
   const dispatch = useDispatch()
   
   const mongoUser = useSelector((state) => state.user.value) 
-  const { messages } = useSelector((state) => state.messages) // Access current chat messages if any
-
+  
   const { pathname } = useLocation()
   const pathnameRef = useRef(pathname)
-  const lastMessageIdRef = useRef(null) // Keep track of the last received message
+  const lastMessageIdRef = useRef(null) 
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,7 +44,7 @@ const App = () => {
     pathnameRef.current = pathname
   }, [pathname])
 
-  // --- REPLACED SSE WITH POLLING (Works on Vercel) ---
+  // --- POLLING LOGIC (FIXED) ---
   useEffect(() => {
     if (!mongoUser) return;
 
@@ -54,40 +52,40 @@ const App = () => {
       try {
         const token = await getToken();
         
-        // 1. Fetch Recent Conversations
+        // Fetch Inbox
         const { data } = await api.get('/api/user/recent-messages', {
             headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (data.success && data.messages.length > 0) {
-            const latestChat = data.messages[0];
-            const latestMsg = latestChat.lastMessage;
+        // FIX: Check directly for messages array
+        if (data.success && data.messages && data.messages.length > 0) {
+            // The endpoint returns a sorted array of MESSAGES, not chats.
+            // So data.messages[0] IS the latest message.
+            const latestMsg = data.messages[0]; 
 
-            // 2. Check if this is a NEW message we haven't seen yet
+            // 1. Check if this is a NEW message we haven't seen yet
             if (lastMessageIdRef.current && lastMessageIdRef.current !== latestMsg._id) {
                 
-                // 3. Check if it's INCOMING (not sent by me)
-                if (latestMsg.from_user_id !== mongoUser._id) {
+                // 2. Identify Sender (Handle populated object vs string ID)
+                const senderId = latestMsg.from_user_id?._id || latestMsg.from_user_id;
+
+                // 3. Ensure it's not a message I sent to myself (just in case)
+                if (senderId !== mongoUser._id) {
                     
                     // 4. If we are currently in that chat window...
-                    if (pathnameRef.current === ('/messages/' + latestChat.user._id)) {
-                        // ...Fetch the full chat history to update the screen
-                        dispatch(fetchMessages({ token, userId: latestChat.user._id }));
+                    if (pathnameRef.current === ('/messages/' + senderId)) {
+                        // Refresh the chat to show the new message
+                        dispatch(fetchMessages({ token, userId: senderId }));
                     } else {
-                        // 5. Otherwise, show a Notification
-                        const notifData = {
-                             ...latestMsg,
-                             from_user_id: latestChat.user // Ensure this matches Notification structure
-                        }
-                        
+                        // 5. Otherwise, show Notification
                         toast.custom((t) => (
-                            <Notification t={t} message={notifData} />
+                            <Notification t={t} message={latestMsg} />
                         ), { position: 'bottom-right' })
                     }
                 }
             }
             
-            // Update our ref so we don't notify again for the same message
+            // Update ref to current latest ID
             lastMessageIdRef.current = latestMsg._id;
         }
 
@@ -96,11 +94,8 @@ const App = () => {
       }
     };
 
-    // Run immediately
     pollServer();
-
-    // Run every 3 seconds (Adjust as needed)
-    const intervalId = setInterval(pollServer, 2000);
+    const intervalId = setInterval(pollServer, 3000); // Check every 3 seconds
 
     return () => clearInterval(intervalId);
 
