@@ -73,7 +73,7 @@ const ChatBox = () => {
   },[connections,userId])
 
   useEffect(()=>{
-      messagesEndRef.current?.scrollIntoView({behaviour :'smooth'})
+      messagesEndRef.current?.scrollIntoView({behavior :'smooth'})
   },[messages])
   return user && (
     <div  className='flex flex-col h-screen'>
