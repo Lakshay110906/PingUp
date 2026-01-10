@@ -24,7 +24,7 @@ const App = () => {
   
   // 2. Get the Real Database User from Redux
   // We need this user's _id for the live connection
-  const mongoUser = useSelector((state) => state.user.user) 
+  const mongoUser = useSelector((state) => state.user.value) 
 
   const { pathname } = useLocation()
   const pathnameRef = useRef(pathname)
