@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react' // Added useEffect
+import React, { useRef, useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Feed from './pages/Feed'
@@ -10,20 +10,19 @@ import Profile from './pages/Profile'
 import CreatePost from './pages/CreatePost'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import Layout from './pages/Layout'
-import { Toaster, toast } from 'react-hot-toast' // Consolidated imports
-import { useDispatch, useSelector } from 'react-redux' // 1. Import useSelector
+import { Toaster, toast } from 'react-hot-toast'
+import { useDispatch, useSelector } from 'react-redux'
 import { fetchUser } from './features/user/userSlice'
 import { fetchConnections } from './features/connections/connectionsSlice'
 import { addMessage } from './features/messages/messagesSlice'
 import Notification from './components/Notification'
 
 const App = () => {
-  const { user } = useUser() // Clerk User (Used for auth check)
+  const { user } = useUser() // Clerk User (Auth only)
   const { getToken } = useAuth()
   const dispatch = useDispatch()
   
-  // 2. Get the Real Database User from Redux
-  // We need this user's _id for the live connection
+  // 1. GET THE DATABASE USER (Contains the correct _id)
   const mongoUser = useSelector((state) => state.user.value) 
 
   const { pathname } = useLocation()
@@ -44,9 +43,9 @@ const App = () => {
     pathnameRef.current = pathname
   }, [pathname])
 
-  // 3. EVENT SOURCE CONNECTION
+  // 2. LIVE CHAT CONNECTION (SSE)
   useEffect(() => {
-    // Only connect if we have the mongoUser loaded
+    // Only connect if the MongoDB user is fully loaded
     if (mongoUser) {
       
       // FIX: Use mongoUser._id (Database ID) instead of user.id (Clerk ID)
@@ -55,11 +54,12 @@ const App = () => {
       eventSource.onmessage = (event) => {
         const message = JSON.parse(event.data)
         
-        // Check if we are currently looking at the chat where the message came from
-        if (pathnameRef.current === ('/messages/' + message.from_user_id._id)) {
+        // If we are currently chatting with this person, add the message directly
+        // Use ?. checks to prevent crashes
+        if (pathnameRef.current === ('/messages/' + message.from_user_id?._id)) {
           dispatch(addMessage(message))
         } else {
-          // Otherwise show a notification
+          // Otherwise show the popup notification
           toast.custom((t) => (
             <Notification t={t} message={message} />
           ), { position: 'bottom-right' })
@@ -67,15 +67,15 @@ const App = () => {
       }
 
       eventSource.onerror = (error) => {
-        console.error("SSE Error:", error)
-        eventSource.close()
+        console.error("SSE Error:", error);
+        eventSource.close();
       }
 
       return () => {
         eventSource.close()
       }
     }
-  }, [mongoUser, dispatch]) // Dependency is now mongoUser, not user
+  }, [mongoUser, dispatch]) // Dependency is mongoUser
 
   return (
     <>
