@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
 
-//Create a transporter object using the SMTP setings
+// ADD THIS LOG to check if variables are loaded
+console.log("Nodemailer Config Loading...");
+console.log("User:", process.env.SMTP_USER ? "Loaded" : "MISSING");
+console.log("Pass:", process.env.SMTP_PASS ? "Loaded" : "MISSING");
+
 const transporter = nodemailer.createTransport({
     host: "smtp-relay.brevo.com",
     port: 587,
@@ -11,13 +15,21 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async ({to,subject,body}) => {
-    const response = await transporter.sendEmail({
-        from: process.env.SENDER_EMAIL,
-        to,
-        subject,
-        html: body,
-    })
-    return response
+    try {
+        console.log(`Sending email to: ${to}`);
+        
+        const response = await transporter.sendMail({ // Make sure this is sendMail
+            from: process.env.SENDER_EMAIL, 
+            to,
+            subject,
+            html: body,
+        })
+        console.log("Email sent successfully!");
+        return response
+    } catch (error) {
+        console.error("EMAIL ERROR:", error); // Check your terminal for this!
+        throw error;
+    }
 }
 
 export default sendEmail

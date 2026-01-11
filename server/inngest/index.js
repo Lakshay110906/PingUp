@@ -76,45 +76,62 @@ const sendNewConnectionRequestReminder = inngest.createFunction(
     async ({ event, step }) => {
         const { connectionId } = event.data
 
+        // STEP 1: Send Initial Email
         await step.run('send-connection-request-mail', async () => {
             const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id')
+
+            // --- SAFETY CHECK ---
+            if (!connection) {
+                return { message: "Connection not found (deleted?), email skipped." };
+            }
+            // --------------------
+
             const subject = `New Connection Request`
-            const body = `<div style = " font-family : Arial, sans-serif; padding: 20px;">
-              <h2> hi ${connection.to_user_id.full_name}, </h2>
-              <p> You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
-              <p>Click <a href = "${process.env.FRONTEND_URL}/connections" style = "color: #10b981;" >here</a> to accept or reject the request </p>
+            const body = `<div style="font-family: Arial, sans-serif; padding: 20px;">
+              <h2> Hi ${connection.to_user_id.full_name}, </h2>
+              <p> You have a new connection request from ${connection.from_user_id.full_name}</p>
+              <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept/reject.</p>
               <br/>
-              <p>Thanks,<br/>PingUp - Stay Connected</p>
+              <p>Thanks,<br/>PingUp</p>
             </div>`;
 
             await sendEmail({
-                to: connectionId.to_user_id.email,
+                to: connection.to_user_id.email,
                 subject,
                 body
             })
+            return { sent: true }
         })
 
-        const in24Hours = new Date(Date.now() + 24*60*60 *1000 )
-        await step.sleepUntil('wait-for-24-hours', in24Hours)
+        // STEP 2: Wait (Use 10 seconds for testing, 24h for production)
+        const waitTime = new Date(Date.now() + 24 * 60 * 60 * 1000); 
+        await step.sleepUntil('wait-for-24-hours', waitTime)
+
+        // STEP 3: Send Reminder
         await step.run('send-connection-request-reminder', async() => {
             const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id')
+
+            // --- SAFETY CHECK (Crucial here too!) ---
+            if (!connection) {
+                return { message: "Connection not found (deleted?), reminder skipped." };
+            }
+            // ----------------------------------------
 
             if(connection.status === 'accepted'){
                 return {message: 'Already accepted'}
             }
 
-            
-            const subject = `New Connection Request`
-            const body = `<div style = " font-family : Arial, sans-serif; padding: 20px;">
-              <h2> hi ${connection.to_user_id.full_name}, </h2>
-              <p> You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
-              <p>Click <a href = "${process.env.FRONTEND_URL}/connections" style = "color: #10b981;" >here</a> to accept or reject the request </p>
+            const subject = `Reminder: New Connection Request`
+            const body = `<div style="font-family: Arial, sans-serif; padding: 20px;">
+              <h2> Hi ${connection.to_user_id.full_name}, </h2>
+              <p> You still have a pending connection request from ${connection.from_user_id.full_name}.</p>
+              <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept/reject.</p>
               <br/>
-              <p>Thanks,<br/>PingUp - Stay Connected</p>
+              <p>Thanks,<br/>PingUp</p>
             </div>`;
 
             await sendEmail({
-                to: connectionId.to_user_id.email,
+                to: connection.to_user_id.email,
                 subject,
                 body
             })
@@ -123,18 +140,17 @@ const sendNewConnectionRequestReminder = inngest.createFunction(
         })
     }
 )
-
 // Inngest function to delete story after 24 hours
 const deleteStory = inngest.createFunction(
-    {id: 'story-delete'},
-    {event: 'app/story.delete'},
-    async ({ event , step }) => {
-        const {storyId} = event.data
-        const in24Hours = new Date(Date.now() + 24*60*60*1000)
+    { id: 'story-delete' },
+    { event: 'app/story.delete' },
+    async ({ event, step }) => {
+        const { storyId } = event.data
+        const in24Hours = new Date(Date.now() + 24 * 60 * 60 * 1000)
         await step.sleepUntil('wait-for-24-hours', in24Hours)
-        await step.run('delete-story' , async() => {
+        await step.run('delete-story', async () => {
             await Story.findByIdAndDelete(storyId)
-            return{message : "Story deleted"}
+            return { message: "Story deleted" }
         })
     }
 )
@@ -143,18 +159,18 @@ const sendNotificationOfUnseenMessages = inngest.createFunction(
     {
         id: 'send-unseen-messages-notification'
     },
-    {cron : 'TZ=America/New_York 0 9 * * *'}, // Every day 9 AM
-    async({step}) => {
-        const messages = await Message.find({seen : false}).populate('to_user_id')
+    { cron: 'TZ=America/New_York 0 9 * * *' }, // Every day 9 AM
+    async ({ step }) => {
+        const messages = await Message.find({ seen: false }).populate('to_user_id')
         const unseenCount = {}
 
         messages.map(message => {
-            unseenCount[message.to_user_id._id] = (unseenCount[message.to_user_id._id] || 0) +1
+            unseenCount[message.to_user_id._id] = (unseenCount[message.to_user_id._id] || 0) + 1
         })
 
-        for(const userId in unseenCount){
+        for (const userId in unseenCount) {
             const user = await User.findById(userId);
-            const subject = '📪 You have ${unseenCount[userId]} unseen messages';
+            const subject = `📪 You have ${unseenCount[userId]} unseen messages`;
             const body = ` <div style = 'font-family: Arial, sans-serif; padding: 20px;'>
             <h2> Hi ${user.full_name}, </h2>
             <p> You have ${unseenCount[userId]} unseen messages </p>
@@ -170,7 +186,7 @@ const sendNotificationOfUnseenMessages = inngest.createFunction(
                 body
             })
         }
-        return { message : "Notification sent"}
+        return { message: "Notification sent" }
     }
 )
 // Create an empty array where we'll export future Inngest functions
