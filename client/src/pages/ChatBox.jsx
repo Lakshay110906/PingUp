@@ -36,7 +36,7 @@ const ChatBox = () => {
     if (!userState?._id) return;
 
     // Ensure this matches your backend URL
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const backendUrl = import.meta.env.VITE_BASEURL ;
     const eventSource = new EventSource(`${backendUrl}/api/message/${userState._id}`);
 
     eventSource.onmessage = (event) => {
