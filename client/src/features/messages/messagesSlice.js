@@ -3,7 +3,7 @@ import api from "../../api/axios";
 
 const initialState = {
     messages: [],
-    unreadCount: 0 // New state for global badge
+    unreadCount: 0 // Added for the badge
 }
 
 export const fetchMessages = createAsyncThunk('messages/fetchMessages', async ({ token, userId }) => {
@@ -13,7 +13,7 @@ export const fetchMessages = createAsyncThunk('messages/fetchMessages', async ({
     return data.success ? data : null
 })
 
-// NEW: Fetch global unread count
+// NEW: Fetch global unread count for the badge
 export const fetchUnreadCount = createAsyncThunk('messages/fetchUnreadCount', async (token) => {
     const { data } = await api.get('/api/message/unread/count', {
         headers: { Authorization: `Bearer ${token}` }
@@ -28,17 +28,21 @@ const messagesSlice = createSlice({
         setMessages: (state, action) => {
             state.messages = action.payload
         },
+        // UPDATED: Handles both NEW messages and UPDATES (live delete)
         addMessage: (state, action) => {
             const index = state.messages.findIndex(m => m._id === action.payload._id);
             if (index !== -1) {
+                // If message exists, update it (e.g. "This message was deleted")
                 state.messages[index] = action.payload;
             } else {
-                state.messages = [...state.messages, action.payload];
+                // If it's new, add it
+                state.messages.push(action.payload);
             }
         },
         resetMessages: (state) => {
             state.messages = []
         },
+        // UPDATED: Handles local deletion immediately
         deleteMessageFromState: (state, action) => {
             const { messageId, type } = action.payload;
             if (type === 'me') {
