@@ -184,7 +184,7 @@ const Connections = () => {
                   <>
                     <button 
                       onClick={() => navigate(`/messages/${user._id}`)} 
-                      className='flex-[2] py-1.5 px-1 md:py-2 text-xs md:text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap'
+                      className='flex-2 py-1.5 px-1  text-xs md:text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap'
                     >
                       <MessageSquare className='w-3 h-3 md:w-4 md:h-4'/> Message
                     </button>
