@@ -38,8 +38,11 @@ const Profile = () => {
     } catch (error) {
       toast.error(data.message)
     }
+  }
 
-
+  // Remove Post from local state (No reload)
+  const removePostFromState = (postId) => {
+      setPosts(prev => prev.filter(post => post._id !== postId));
   }
 
   useEffect(() => {
@@ -47,12 +50,12 @@ const Profile = () => {
       fetchUser(profileId)
     }
     else {
-      fetchUser(currentUser._id)
+      if(currentUser?._id) fetchUser(currentUser._id)
     }
   }, [profileId,currentUser])
 
   return user ? (
-    <div className='relative h-full overflow-y-scroll bg-gray-50 p-6'>
+    <div className='relative h-full overflow-y-scroll bg-gray-50 p-4 md:p-6 no-scrollbar'>
       <div className='max-w-3xl mx-auto'>
         {/* Profile Card */}
         <div className='bg-white rounded-2xl shadow overflow-hidden'>
@@ -78,7 +81,13 @@ const Profile = () => {
           {
             activeTab === 'posts' && (
               <div className='mt-6 flex flex-col items-center gap-6'>
-                {posts.map((post) => <PostCard key={post._id} post={post} />)}
+                {posts.map((post) => (
+                    <PostCard 
+                        key={post._id} 
+                        post={post} 
+                        onDelete={removePostFromState} 
+                    />
+                ))}
               </div>
             )
           }
@@ -86,17 +95,17 @@ const Profile = () => {
           {/* Media */}
           {
             activeTab === 'media' && (
-              <div className='flex flex-wrap mt-6 max-w-6xl'>
+              <div className='flex flex-wrap mt-6 max-w-6xl gap-2 justify-center sm:justify-start'>
                 {
                   posts.filter((post) => post.image_urls.length > 0).map((post) => (
-                    <>
+                    <React.Fragment key={post._id}>
                       {post.image_urls.map((image, index) => (
                         <Link target='_blank' to={image} key={index} className='relative group'>
-                          <img src={image} key={index} className='w-64 aspect-video object-cover' alt="" />
-                          <p className='absolute bottom-0 right-0 text-xs p-1 px-3 backdrop-blur-xl tetxt-white opacity-0 group-hover:opacity-100 transition duration-300'>Posted {moment(post.createdAt).fromNow()}</p>
+                          <img src={image} className='w-32 h-32 sm:w-64 sm:h-36 object-cover rounded shadow-sm' alt="" />
+                          <p className='absolute bottom-0 right-0 text-xs p-1 px-3 backdrop-blur-xl text-white opacity-0 group-hover:opacity-100 transition duration-300'>Posted {moment(post.createdAt).fromNow()}</p>
                         </Link>
                       ))}
-                    </>
+                    </React.Fragment>
                   ))
                 }
               </div>

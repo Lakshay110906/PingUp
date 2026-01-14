@@ -8,7 +8,7 @@ const connections = {}
 export const sseController = (req, res) => {
     // ... (Keep existing sseController code)
     const { userId } = req.params
-    console.log('New client coonected : ', userId)
+    console.log('New client connected : ', userId)
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
@@ -124,15 +124,42 @@ export const deleteMessage = async (req, res) => {
     }
 }
 
-// UPDATED: Get recent messages with UNREAD COUNTS
+// Clear Chat Function
+export const clearChat = async (req, res) => {
+    try {
+        const { userId } = req.auth();
+        const { to_user_id } = req.body;
+
+        // Hide all messages between the two users for the current user
+        await Message.updateMany(
+            {
+                $or: [
+                    { from_user_id: userId, to_user_id: to_user_id },
+                    { from_user_id: to_user_id, to_user_id: userId }
+                ],
+                deleted_for: { $ne: userId } 
+            },
+            {
+                $push: { deleted_for: userId }
+            }
+        );
+
+        res.json({ success: true, message: "Chat cleared successfully" });
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
+
+// ... (Keep existing recent messages and unread count functions)
 export const getUserRecentMessges = async (req, res) => {
     try {
         const { userId } = req.auth();
 
-        // 1. Get all messages involving the user (sent or received)
         const messages = await Message.find({
             $or: [{ from_user_id: userId }, { to_user_id: userId }],
-            deleted_for: { $ne: userId } // Exclude messages deleted by the user
+            deleted_for: { $ne: userId } 
         })
         .sort({ createdAt: -1 })
         .populate('from_user_id', 'full_name profile_picture username')
@@ -141,42 +168,32 @@ export const getUserRecentMessges = async (req, res) => {
         const uniqueConversations = {};
 
         messages.forEach(msg => {
-            // Safety Check: If a user was deleted, from/to might be null. Skip these.
             if (!msg.from_user_id || !msg.to_user_id) return;
 
-            // 2. Identify the "Other" person in the conversation
-            // We use .toString() to ensure we are comparing Strings, not Objects
             const otherUser = msg.from_user_id._id.toString() === userId 
                 ? msg.to_user_id 
                 : msg.from_user_id;
 
             const otherId = otherUser._id.toString();
 
-            // 3. Initialize the conversation entry if it doesn't exist
             if (!uniqueConversations[otherId]) {
                 uniqueConversations[otherId] = {
                     _id: msg._id,
                     text: msg.text,
                     message_type: msg.message_type,
                     createdAt: msg.createdAt,
-                    // IMPORTANT: The frontend expects 'displayUser' or 'from_user_id'
-                    // We attach 'displayUser' to make it easy for the frontend
                     displayUser: otherUser, 
                     unreadCount: 0,
-                    // Keep original fields just in case
                     from_user_id: msg.from_user_id,
                     to_user_id: msg.to_user_id
                 };
             }
 
-            // 4. Count Unread Messages
-            // Logic: If I am the receiver (to_user_id === me) AND it's not seen
             if (msg.to_user_id._id.toString() === userId && !msg.seen) {
                 uniqueConversations[otherId].unreadCount += 1;
             }
         });
 
-        // 5. Convert object back to array and sort by date
         const results = Object.values(uniqueConversations).sort((a, b) => 
             new Date(b.createdAt) - new Date(a.createdAt)
         );
@@ -189,7 +206,6 @@ export const getUserRecentMessges = async (req, res) => {
     }
 }
 
-// NEW: Global Unread Count for Sidebar
 export const getGlobalUnreadCount = async (req, res) => {
     try {
         const { userId } = req.auth();

@@ -7,7 +7,7 @@ import api from '../api/axios'
 
 const RecentMessages = () => {
     const [messages, setMessages] = useState([])
-    const [loading, setLoading] = useState(true) // Added loading state
+    const [loading, setLoading] = useState(true)
     const { user } = useUser()
     const { getToken } = useAuth()
     const navigate = useNavigate()
@@ -15,33 +15,13 @@ const RecentMessages = () => {
     const fetchRecentMessages = async () => {
         try {
             const token = await getToken()
-            // Ensure this endpoint populates both 'from_user_id' and 'to_user_id'
             const { data } = await api.get('/api/user/recent-messages', {
                 headers: { Authorization: `Bearer ${token}` }
             })
 
             if (data.success) {
-                const groupMessages = data.messages.reduce((acc, message) => {
-                    // FIX: Identify the 'other' user in the conversation
-                    // If I sent it, the other person is 'to_user_id'. If they sent it, it's 'from_user_id'.
-                    const isMe = message.from_user_id._id === user.id
-                    const otherUser = isMe ? message.to_user_id : message.from_user_id
-                    
-                    // Group by the OTHER user's ID so conversations stay separate
-                    const conversationId = otherUser._id
-
-                    // Keep the latest message for this conversation
-                    if (!acc[conversationId] || new Date(message.createdAt) > new Date(acc[conversationId].createdAt)) {
-                        acc[conversationId] = { 
-                            ...message, 
-                            displayUser: otherUser // Store the correct user to display
-                        }
-                    }
-                    return acc;
-                }, {})
-
-                const sortedMessages = Object.values(groupMessages).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                setMessages(sortedMessages)
+                // Backend already returns unique grouped conversations with unreadCount
+                setMessages(data.messages)
             } else {
                 toast.error(data.message)
             }
@@ -55,8 +35,7 @@ const RecentMessages = () => {
     useEffect(() => {
         if (user) {
             fetchRecentMessages()
-            // FIX: Capture the interval ID and clear it properly
-            const intervalId = setInterval(fetchRecentMessages, 1000)
+            const intervalId = setInterval(fetchRecentMessages, 2000) // Poll every 2 seconds
             return () => {
                 clearInterval(intervalId) 
             }
@@ -68,14 +47,13 @@ const RecentMessages = () => {
             <h3 className='font-semibold text-slate-800 mb-4 '>Recent Messages</h3>
             
             <div className='flex flex-col max-h-56 overflow-y-scroll no-scrollbar'>
-                {/* Show Loading or Empty State */}
                 {loading && messages.length === 0 ? (
                     <p className="text-gray-400 text-center py-2">Loading...</p>
                 ) : messages.length === 0 ? (
                     <p className="text-gray-400 text-center py-2">No recent messages</p>
                 ) : (
                     messages.map((message, index) => {
-                        // Use the correct 'other' user we calculated earlier
+                        // Backend provides 'displayUser' which is the OTHER person in the chat
                         const displayUser = message.displayUser || message.from_user_id;
                         
                         return (
@@ -92,16 +70,15 @@ const RecentMessages = () => {
                                     </div>
                                     <div className='flex justify-between items-center mt-1'>
                                         <p className='text-gray-500 truncate max-w-[150px]'>
-                                            {/* Show "You:" if the current user sent the last message */}
+                                            {/* Show "You:" if current user sent the last message */}
                                             {message.from_user_id._id === user.id && 'You: '}
                                             {message.message_type === 'image' ? 'Sent an image' : message.text}
                                         </p>
                                         
-                                        {/* Unread Badge Logic */}
-                                        {/* Only show badge if I am the receiver AND it's not seen */}
-                                        {!message.seen && message.to_user_id._id === user.id && (
-                                            <p className='bg-indigo-500 text-white min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] px-1 font-bold'>
-                                                1
+                                        {/* Unread Badge - Uses unreadCount from Backend */}
+                                        {message.unreadCount > 0 && (
+                                            <p className='bg-indigo-500 text-white min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] px-1 font-bold'>
+                                                {message.unreadCount}
                                             </p>
                                         )}
                                     </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ImageIcon, SendHorizonal, MoreVertical } from 'lucide-react'
+import { ImageIcon, SendHorizonal, MoreVertical, Trash2, ArrowLeft } from 'lucide-react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useNavigate } from 'react-router'
 import { useAuth } from '@clerk/clerk-react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
@@ -13,10 +13,14 @@ const ChatBox = () => {
   const { userId } = useParams()
   const { getToken } = useAuth()
   const dispatch = useDispatch()
+  const navigate = useNavigate()
+  
   const [text, setText] = useState('')
   const [image, setImage] = useState(null)
   const [user, setUser] = useState(null)
   const [activeMenuId, setActiveMenuId] = useState(null)
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false)
+
   const messagesEndRef = useRef(null)
   const isFirstLoad = useRef(true)
 
@@ -31,18 +35,16 @@ const ChatBox = () => {
     }
   }
 
-  // 1. LIVE LISTENER: Listens for new messages AND updates (like deletions)
+  // Live Listener
   useEffect(() => {
     if (!userState?._id) return;
 
-    // Ensure this matches your backend URL
     const backendUrl = import.meta.env.VITE_BASEURL ;
     const eventSource = new EventSource(`${backendUrl}/api/message/${userState._id}`);
 
     eventSource.onmessage = (event) => {
       const newMessage = JSON.parse(event.data);
       
-      // Check if this message/update belongs to the current open chat
       const isRelated = 
           (newMessage.from_user_id._id === userId || newMessage.from_user_id === userId) || 
           (newMessage.to_user_id._id === userId || newMessage.to_user_id === userId);
@@ -86,7 +88,7 @@ const ChatBox = () => {
   const handleDelete = async (messageId, type) => {
     try {
       const token = await getToken();
-      dispatch(deleteMessageFromState({ messageId, type })); // Optimistic update
+      dispatch(deleteMessageFromState({ messageId, type })); 
       setActiveMenuId(null);
 
       const { data } = await api.post('/api/message/delete',
@@ -95,7 +97,7 @@ const ChatBox = () => {
       );
 
       if (!data.success) {
-        fetchUserMessages(); // Revert if failed
+        fetchUserMessages();
         toast.error(data.message);
       }
     } catch (error) {
@@ -103,8 +105,34 @@ const ChatBox = () => {
     }
   }
 
+  const handleClearChat = async () => {
+      if(!confirm("Are you sure you want to clear this chat? This will remove all messages for you.")) return;
+      
+      try {
+          const token = await getToken();
+          const { data } = await api.post('/api/message/clear', 
+              { to_user_id: userId },
+              { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          if (data.success) {
+              toast.success("Chat cleared");
+              dispatch(resetMessages());
+              setShowHeaderMenu(false);
+          } else {
+              toast.error(data.message);
+          }
+      } catch (error) {
+          console.error(error);
+          toast.error("Failed to clear chat");
+      }
+  }
+
   useEffect(() => {
-    const handleClickOutside = () => setActiveMenuId(null);
+    const handleClickOutside = () => {
+        setActiveMenuId(null);
+        setShowHeaderMenu(false);
+    };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
@@ -132,26 +160,63 @@ const ChatBox = () => {
     }
   }, [messages]);
 
-  const sortedMessages = messages.toSorted((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  // Sort Descending (Newest First) for flex-col-reverse
+  const reversedMessages = messages.toSorted((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   return user && (
     <div className='flex flex-col h-screen'>
       {/* Header */}
-      <div className='flex items-center gap-2 p-2 md:px-10 xl:pl-42 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-300'>
-        <img src={user.profile_picture} className='size-8 rounded-full' alt="" />
-        <div>
-          <p className='font-medium'>{user.full_name}</p>
-          <p className='text-sm text-gray-500 -mt-1.5'>@{user.username}</p>
+      <div className='flex items-center justify-between p-2 md:px-10 xl:pl-42 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-300 relative z-30'>
+        <div className='flex items-center gap-2'>
+            <button onClick={() => navigate(-1)} className='md:hidden text-gray-600'>
+                <ArrowLeft size={24} />
+            </button>
+
+            <img src={user.profile_picture} className='size-8 rounded-full' alt="" />
+            <div>
+              <p className='font-medium'>{user.full_name}</p>
+              <p className='text-sm text-gray-500 -mt-1.5'>@{user.username}</p>
+            </div>
+        </div>
+
+        <div className='relative max-sm:mr-10'>
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowHeaderMenu(!showHeaderMenu);
+                }}
+                className='p-2 rounded-full hover:bg-black/5 transition'
+            >
+                <MoreVertical className='text-gray-600' size={20}/>
+            </button>
+            
+            {showHeaderMenu && (
+                <div className='absolute right-0 top-10 bg-white shadow-lg rounded-lg border border-gray-100 py-1 w-40 z-50 ring-1 ring-black ring-opacity-5'>
+                    <button 
+                        onClick={handleClearChat}
+                        className='w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
+                    >
+                        <Trash2 size={16}/>
+                        Clear Chat
+                    </button>
+                </div>
+            )}
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className='p-5 md:px-10 flex-1 overflow-y-scroll custom-scroll'>
-        <div className='space-y-4 max-w-4xl mx-auto'>
+      {/* Messages Area - Updated for Bottom-to-Top Stacking */}
+      {/* flex-col-reverse starts content from the visual bottom */}
+      <div className='p-5 md:px-10 flex-1 overflow-y-scroll custom-scroll flex flex-col-reverse'>
+        <div className='space-y-4 max-w-4xl mx-auto w-full'>
+          
+          {/* Scroll Anchor - Placed at the "Start" (which is visual Bottom in reverse col) */}
+          <div ref={messagesEndRef} />
+
           {
-            sortedMessages.map((message, index) => {
+            reversedMessages.map((message, index) => {
                const isMyMessage = (message.from_user_id?._id === userState?._id) || (message.from_user_id === userState?._id);
-               const isNearBottom = index >= sortedMessages.length - 2;
+               // In reversed list, "top" items are visually at bottom.
+               const isNearBottom = index <= 2; 
 
                return (
                 <div key={index} className={`flex flex-col group relative ${message.to_user_id !== user._id ? 'items-start' : 'items-end'}`}>
@@ -162,20 +227,18 @@ const ChatBox = () => {
                   `}>
                     
                     {/* 3-Dot Menu */}
-                    {!message.is_deleted_everyone && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === message._id ? null : message._id);
-                        }}
-                        className={`absolute top-1 
-                          ${message.to_user_id !== user._id ? '-right-6 md:-right-8' : '-left-6 md:-left-8'} 
-                          p-2 rounded-full hover:bg-gray-100 text-gray-500 
-                          opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity`} 
-                      >
-                        <MoreVertical size={20} />
-                      </button>
-                    )}
+                    <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuId(activeMenuId === message._id ? null : message._id);
+                    }}
+                    className={`absolute top-1 
+                        ${message.to_user_id !== user._id ? '-right-6 md:-right-8' : '-left-6 md:-left-8'} 
+                        p-2 rounded-full hover:bg-gray-100 text-gray-500 
+                        opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity`} 
+                    >
+                    <MoreVertical size={20} />
+                    </button>
 
                     {/* Dropdown */}
                     {activeMenuId === message._id && (
@@ -186,7 +249,8 @@ const ChatBox = () => {
                         <button onClick={() => handleDelete(message._id, 'me')} className="w-full text-left px-4 py-3 md:py-2 text-sm hover:bg-gray-50 text-gray-700 border-b border-gray-50 md:border-none">
                           Delete for me
                         </button>
-                        {isMyMessage && (
+                        
+                        {isMyMessage && !message.is_deleted_everyone && (
                           <button onClick={() => handleDelete(message._id, 'everyone')} className="w-full text-left px-4 py-3 md:py-2 text-sm hover:bg-gray-50 text-red-600">
                             Delete for everyone
                           </button>
@@ -206,7 +270,6 @@ const ChatBox = () => {
               )
             })
           }
-          <div ref={messagesEndRef} />
         </div>
       </div>
 

@@ -12,7 +12,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   const user = useSelector((state) => state.user.value)
   const { signOut } = useClerk()
   return (
-    <div className={`w-60 xl:w-72 bg-white border-r border-gray-200 flex flex-col justify-between items-center max-sm:absolute top-0 bottom-0 z-20 ${sidebarOpen ? 'translate-x-0' : 'max-sm:-translate-x-full'} transition-all`}>
+    // Changed z-20 to z-50 to ensure it covers the ChatBox header (z-30)
+    <div className={`w-60 xl:w-72 bg-white border-r border-gray-200 flex flex-col justify-between items-center max-sm:absolute top-0 bottom-0 z-50 ${sidebarOpen ? 'translate-x-0' : 'max-sm:-translate-x-full'} transition-all`}>
       <div className='w-full  '>
         <img onClick={() => navigate('/')} src={assets.logo} className='w-26 ml-7 my-2 cursor-pointer' alt="" />
         <hr className='border-gray-300 mb-8' />

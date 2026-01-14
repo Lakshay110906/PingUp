@@ -32,6 +32,11 @@ const StoriesBar = () => {
         }
     }
 
+    // Function to remove story from state locally (without reloading)
+    const handleRemoveStory = (storyId) => {
+        setStories(prev => prev.filter(story => story._id !== storyId));
+    }
+
     useEffect(() => {
         fetchStories()
     }, [])
@@ -75,11 +80,13 @@ const StoriesBar = () => {
 
             {/* View Story Model */}
             {
-                viewStory && <StoryViewer viewStory={viewStory} setViewStory={setViewStory} />
+                viewStory && 
+                <StoryViewer 
+                    viewStory={viewStory} 
+                    setViewStory={setViewStory} 
+                    removeStoryFromState={handleRemoveStory} 
+                />
             }
-
-
-
         </div>
     )
 }

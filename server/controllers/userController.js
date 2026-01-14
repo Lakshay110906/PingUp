@@ -327,4 +327,37 @@ export const removeConnection = async (req, res) => {
     }
 }
 
+// Remove Follower (NEW)
+export const removeFollower = async (req, res) => {
+    try {
+        const { userId } = req.auth(); // Current user (me)
+        const { id } = req.body; // The follower to remove
+
+        const user = await User.findById(userId);
+        const followerToRemove = await User.findById(id);
+
+        if (!user || !followerToRemove) {
+            return res.json({ success: false, message: "User not found" });
+        }
+
+        // 1. Remove 'id' from my followers list
+        if (user.followers.includes(id)) {
+            user.followers = user.followers.filter(fid => fid.toString() !== id);
+            await user.save();
+        }
+
+        // 2. Remove 'userId' from their following list
+        if (followerToRemove.following.includes(userId)) {
+            followerToRemove.following = followerToRemove.following.filter(fid => fid.toString() !== userId);
+            await followerToRemove.save();
+        }
+
+        res.json({ success: true, message: "Follower removed successfully" });
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
+
 

@@ -63,3 +63,34 @@ export const getStories = async(req,res) => {
         res.json({success: false , message: error.message})
     }
 }
+
+// Delete Story
+export const deleteStory = async (req, res) => {
+    try {
+        const { userId } = req.auth();
+        const { id } = req.params;
+
+        const story = await Story.findById(id);
+
+        if (!story) {
+            return res.json({ success: false, message: "Story not found" });
+        }
+
+        // Check if the current user is the owner of the story
+        // Assuming userId (req.auth) matches the story.user reference (which might be an ID or populated object)
+        // If story.user is populated, we check story.user._id
+        const storyOwnerId = story.user._id ? story.user._id.toString() : story.user.toString();
+
+        if (storyOwnerId !== userId) {
+            return res.json({ success: false, message: "You are not authorized to delete this story" });
+        }
+
+        await Story.findByIdAndDelete(id);
+
+        res.json({ success: true, message: "Story deleted successfully" });
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
