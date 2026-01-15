@@ -160,8 +160,8 @@ const ChatBox = () => {
     }
   }, [messages]);
 
-  // Sort Descending (Newest First) for flex-col-reverse
-  const reversedMessages = messages.toSorted((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Standard Sorting: Oldest First (Top) -> Newest Last (Bottom)
+  const sortedMessages = messages.toSorted((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   return user && (
     <div className='flex flex-col h-screen'>
@@ -204,19 +204,17 @@ const ChatBox = () => {
         </div>
       </div>
 
-      {/* Messages Area - Updated for Bottom-to-Top Stacking */}
-      {/* flex-col-reverse starts content from the visual bottom */}
-      <div className='p-5 md:px-10 flex-1 overflow-y-scroll custom-scroll flex flex-col-reverse'>
-        <div className='space-y-4 max-w-4xl mx-auto w-full'>
-          
-          {/* Scroll Anchor - Placed at the "Start" (which is visual Bottom in reverse col) */}
-          <div ref={messagesEndRef} />
-
+      {/* Messages Area - Sticky Bottom Layout */}
+      {/* 1. flex-col: Stacks children vertically.
+          2. mt-auto (on inner div): Pushes the message list to the bottom if content is short.
+      */}
+      <div className='p-5 md:px-10 flex-1 overflow-y-scroll custom-scroll flex flex-col'>
+        <div className='mt-auto space-y-4 max-w-4xl mx-auto w-full'>
           {
-            reversedMessages.map((message, index) => {
+            sortedMessages.map((message, index) => {
                const isMyMessage = (message.from_user_id?._id === userState?._id) || (message.from_user_id === userState?._id);
-               // In reversed list, "top" items are visually at bottom.
-               const isNearBottom = index <= 2; 
+               // Standard flow: Bottom of list is the end
+               const isNearBottom = index >= sortedMessages.length - 2;
 
                return (
                 <div key={index} className={`flex flex-col group relative ${message.to_user_id !== user._id ? 'items-start' : 'items-end'}`}>
@@ -270,6 +268,8 @@ const ChatBox = () => {
               )
             })
           }
+          {/* Scroll Anchor - At the BOTTOM */}
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
