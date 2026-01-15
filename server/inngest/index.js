@@ -189,5 +189,25 @@ const sendNotificationOfUnseenMessages = inngest.createFunction(
         return { message: "Notification sent" }
     }
 )
+
+const deleteExpiredStories = inngest.createFunction(
+    { id: 'delete-expired-stories' },
+    { cron: '0 * * * *' }, // Runs every hour at minute 0
+    async ({ step }) => {
+        await step.run('delete-old-stories-from-db', async () => {
+            // Calculate the timestamp for 24 hours ago
+            const expirationTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            // Delete all stories where 'createdAt' is older than the expiration time
+            const result = await Story.deleteMany({
+                createdAt: { $lt: expirationTime }
+            });
+
+            return { 
+                message: `Cleanup run successful. Deleted ${result.deletedCount} expired stories.` 
+            };
+        })
+    }
+)
 // Create an empty array where we'll export future Inngest functions
-export const functions = [syncUserCreation, updateUserCreation, deleteUserCreation, sendNewConnectionRequestReminder, deleteStory, sendNotificationOfUnseenMessages]; 
+export const functions = [syncUserCreation, updateUserCreation, deleteUserCreation, sendNewConnectionRequestReminder,deleteExpiredStories , sendNotificationOfUnseenMessages]; 
