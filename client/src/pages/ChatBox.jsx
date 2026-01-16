@@ -205,9 +205,6 @@ const ChatBox = () => {
       </div>
 
       {/* Messages Area - Sticky Bottom Layout */}
-      {/* 1. flex-col: Stacks children vertically.
-          2. mt-auto (on inner div): Pushes the message list to the bottom if content is short.
-      */}
       <div className='p-5 md:px-10 flex-1 overflow-y-scroll custom-scroll flex flex-col'>
         <div className='mt-auto space-y-4 max-w-4xl mx-auto w-full'>
           {
@@ -256,12 +253,20 @@ const ChatBox = () => {
                       </div>
                     )}
 
-                    {/* Content */}
+                    {/* Image Content */}
                     {message.message_type === 'image' && !message.is_deleted_everyone && (
                         <Link to={message.media_url} target='_blank'>
                           <img src={message.media_url} className='w-full max-w-sm rounded-lg mb-1 bg-white cursor-pointer' alt="" />
                         </Link>
                     )}
+
+                    {/* Video Content (UPDATED: Wrapped in Link) */}
+                    {message.message_type === 'video' && !message.is_deleted_everyone && (
+                        <Link to={message.media_url} target='_blank' className='block w-full max-w-sm rounded-lg mb-1 overflow-hidden'>
+                          <video controls src={message.media_url} className='w-full max-h-[300px] bg-black' />
+                        </Link>
+                    )}
+
                     <p>{message.text}</p>
                   </div>
                 </div>
@@ -278,8 +283,16 @@ const ChatBox = () => {
         <div className="flex items-center gap-3 pl-5 p-1.5 bg-white w-full max-w-xl mx-auto border border-gray-200 shadow rounded-full mb-5">
           <input type="text" className=" flex-1 outline-none text-slate-700" placeholder='Type a message...' onKeyDown={e => e.key === 'Enter' && sendMessage()} onChange={(e) => setText(e.target.value)} value={text} />
           <label htmlFor="image">
-            {image ? <img src={URL.createObjectURL(image)} alt="" /> : <ImageIcon className='size-7 text-gray-400 cursor-pointer' />}
-            <input type="file" id='image' accept='image/*' hidden onChange={(e) => setImage(e.target.files[0])} />
+            {/* Input Preview */}
+            {image ? (
+                image.type.startsWith('video/') 
+                ? <video src={URL.createObjectURL(image)} className='size-8 object-cover rounded bg-black' muted />
+                : <img src={URL.createObjectURL(image)} className='size-8 object-cover rounded' alt="" />
+            ) : (
+                <ImageIcon className='size-7 text-gray-400 cursor-pointer' />
+            )}
+            
+            <input type="file" id='image' accept='image/*, video/*' hidden onChange={(e) => setImage(e.target.files[0])} />
           </label>
           <button onClick={sendMessage} className='bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-700 hover:to-purple-800 active:scale-95 cursor-pointer text-white p-2 rounded-full'>
             <SendHorizonal size={18} />

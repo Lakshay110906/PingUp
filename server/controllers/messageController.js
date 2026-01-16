@@ -22,25 +22,34 @@ export const sseController = (req, res) => {
 }
 
 export const sendMessage = async (req, res) => {
-    // ... (Keep existing sendMessage code)
     try {
         const { userId } = req.auth();
         const { to_user_id, text } = req.body
-        const image = req.file
+        const file = req.file
 
         let media_url = ''
-        let message_type = image ? 'image' : 'text'
+        let message_type = 'text'
 
-        if (message_type === 'image') {
-            const fileBuffer = fs.readFileSync(image.path)
+        if (file) {
+            const isVideo = file.mimetype.startsWith('video/');
+            message_type = isVideo ? 'video' : 'image';
+
+            const fileBuffer = fs.readFileSync(file.path)
             const response = await imagekit.upload({
                 file: fileBuffer,
-                fileName: image.originalname,
+                fileName: file.originalname,
             })
-            media_url = imagekit.url({
-                path: response.filePath,
-                transformation: [{ quality: 'auto' }, { format: 'webp' }, { width: '1280' }]
-            })
+
+            if (isVideo) {
+                // For videos, use the direct URL
+                media_url = response.url;
+            } else {
+                // For images, apply transformations
+                media_url = imagekit.url({
+                    path: response.filePath,
+                    transformation: [{ quality: 'auto' }, { format: 'webp' }, { width: '1280' }]
+                })
+            }
         }
 
         const message = await Message.create({

@@ -1,46 +1,63 @@
 import fs from 'fs'
 import imagekit from '../config/imageKit.js'
-import { profile } from 'console'
 import Post from '../models/Post.js'
 import User from '../models/User.js'
 
-
-//Add Post
+// Add Post
 export const addPost = async (req, res) => {
     try {
         const { userId } = req.auth()
-        const { content, post_type } = req.body
-        const images = req.files || []
+        const { content } = req.body
+        const files = req.files || []
 
         let image_urls = []
+        let video_urls = []
 
-        if (images.length > 0) {
-            image_urls = await Promise.all(
-                images.map(async (image) => {
-                    const fileBuffer = fs.readFileSync(image.path)
-
+        // Process all files
+        if (files.length > 0) {
+            await Promise.all(
+                files.map(async (file) => {
+                    const fileBuffer = fs.readFileSync(file.path)
+                    const isVideo = file.mimetype.startsWith('video/')
+                    
                     const response = await imagekit.upload({
                         file: fileBuffer,
-                        fileName: image.originalname,
-                        folder: 'posts',
+                        fileName: file.originalname,
+                        folder: isVideo ? 'posts_videos' : 'posts',
                     })
 
-                    return imagekit.url({
-                        path: response.filePath,
-                        transformation: [
-                            { quality: 'auto' },
-                            { format: 'webp' },
-                            { width: '1280' }
-                        ]
-                    })
+                    if (isVideo) {
+                        video_urls.push({ url: response.url })
+                    } else {
+                        const optimizedUrl = imagekit.url({
+                            path: response.filePath,
+                            transformation: [
+                                { quality: 'auto' },
+                                { format: 'webp' },
+                                { width: '1280' }
+                            ]
+                        })
+                        image_urls.push(optimizedUrl)
+                    }
                 })
             )
         }
 
+        // Determine Post Type
+        let post_type = 'text';
+        if (image_urls.length > 0 && video_urls.length > 0) {
+            post_type = content ? 'text_with_mixed' : 'mixed';
+        } else if (image_urls.length > 0) {
+            post_type = content ? 'text_with_image' : 'image';
+        } else if (video_urls.length > 0) {
+            post_type = content ? 'text_with_video' : 'video';
+        }
+
         await Post.create({
             user: userId,
-            content,
+            content: content || '',
             image_urls,
+            video_urls,
             post_type
         })
 
@@ -52,13 +69,12 @@ export const addPost = async (req, res) => {
     }
 }
 
-//get posts
+// Get Feed Posts
 export const getFeedPosts = async (req,res) =>{
     try {
         const {userId} = req.auth()
         const user = await User.findById(userId)
 
-        //User connections and followings
         const userIds = [userId, ...user.connections, ...user.following]
         const posts = await Post.find({user: {$in: userIds}}).populate('user').sort({createdAt: -1})
 
@@ -70,28 +86,31 @@ export const getFeedPosts = async (req,res) =>{
     }
 }
 
-//like post
-export const likePost = async (req,res) =>{
+// Like Post (UPDATED: FIXED VersionError)
+export const likePost = async (req, res) => {
     try {
-        const {userId} = req.auth()
-        const {postId} = req.body
+        const { userId } = req.auth()
+        const { postId } = req.body
 
         const post = await Post.findById(postId)
+        if (!post) {
+            return res.json({ success: false, message: 'Post not found' })
+        }
 
-        if(post.likes_count.includes(userId)){
-            post.likes_count = post.likes_count.filter(user=> user != userId)
-            await post.save()
-            res.json({success: true, message: 'Post unliked'})
+        // Check if user already liked the post
+        if (post.likes_count.includes(userId)) {
+            // Atomic Pull (Unlike)
+            await Post.findByIdAndUpdate(postId, { $pull: { likes_count: userId } })
+            res.json({ success: true, message: 'Post unliked' })
+        } else {
+            // Atomic AddToSet (Like) - prevents duplicates automatically
+            await Post.findByIdAndUpdate(postId, { $addToSet: { likes_count: userId } })
+            res.json({ success: true, message: 'Post liked' })
         }
-        else{
-            post.likes_count.push(userId)
-            await post.save()
-            res.json({success: true, message: 'Post liked'})
-        }
-        
+
     } catch (error) {
         console.log(error)
-        res.json({success: false , message: error.message})
+        res.json({ success: false, message: error.message })
     }
 }
 
@@ -106,7 +125,6 @@ export const deletePost = async (req, res) => {
             return res.json({ success: false, message: "Post not found" });
         }
 
-        // Check if the requesting user is the owner of the post
         if (post.user.toString() !== userId) {
             return res.json({ success: false, message: "Unauthorized action" });
         }

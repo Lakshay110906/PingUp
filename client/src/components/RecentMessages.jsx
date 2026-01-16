@@ -73,6 +73,7 @@ const RecentMessages = () => {
                                             {/* Show "You:" if current user sent the last message */}
                                             {message.from_user_id._id === user.id && 'You: '}
                                             {message.message_type === 'image' ? 'Sent an image' : message.text}
+                                            {message.message_type === 'video' ? 'Sent an video' : message.text}
                                         </p>
                                         
                                         {/* Unread Badge - Uses unreadCount from Backend */}
